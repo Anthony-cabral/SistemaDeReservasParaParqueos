@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using ParkRD.API.Data;
-using ParkRD.API.Models.Dtos;
-using ParkRD.API.Models.Entities;
+using ParkRD.Infrastructure.Context;
+using ParkRD.Infrastructure.Models.Dtos;
+using ParkRD.Domain.Entities;
 
 namespace ParkRD.API.Controllers
 {

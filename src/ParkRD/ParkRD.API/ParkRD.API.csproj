@@ -18,6 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ParkRD.Infrastructure\ParkRD.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Controllers\" />
     <Folder Include="Migrations\" />
   </ItemGroup>
