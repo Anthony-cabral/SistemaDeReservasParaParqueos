@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using ParkRD.Infrastructure.Context;
-using ParkRD.Infrastructure.Models.Dtos;
-using ParkRD.Domain.Entities;
+using ParkRD.Application.Contract;
+using ParkRD.Application.Dtos;
 
 namespace ParkRD.API.Controllers
 {
@@ -9,140 +8,61 @@ namespace ParkRD.API.Controllers
     [Route("api/vehicles")]
     public class VehiclesController : ControllerBase
     {
-        private readonly DataContext _context;
+        private readonly IVehicleService _vehicleService;
 
-        public VehiclesController(DataContext context)
+        public VehiclesController(IVehicleService vehicleService)
         {
-            _context = context;
+            _vehicleService = vehicleService;
         }
 
         [HttpGet]
         public ActionResult<IEnumerable<VehicleDto>> GetAll()
         {
-            var vehicles = _context.Vehicles.Select(vehicle => new VehicleDto
-            {
-                Id = vehicle.Id,
-                Plate = vehicle.Plate,
-                Brand = vehicle.Brand,
-                Model = vehicle.Model,
-                Color = vehicle.Color,
-                UserId = vehicle.UserId,
-                IsActive = vehicle.IsActive
-            }).ToList();
+            var result = _vehicleService.GetAll();
 
-            return Ok(vehicles);
+            return Ok(result.Data);
         }
 
         [HttpGet("{id}")]
         public ActionResult<VehicleDto> GetById(int id)
         {
-            var vehicle = _context.Vehicles.FirstOrDefault(vehicle => vehicle.Id == id);
+            var result = _vehicleService.GetById(id);
 
-            if (vehicle == null)
+            if (!result.Success)
             {
-                return NotFound();
+                return NotFound(result.Message);
             }
 
-            var response = new VehicleDto
-            {
-                Id = vehicle.Id,
-                Plate = vehicle.Plate,
-                Brand = vehicle.Brand,
-                Model = vehicle.Model,
-                Color = vehicle.Color,
-                UserId = vehicle.UserId,
-                IsActive = vehicle.IsActive
-            };
-
-            return Ok(response);
+            return Ok(result.Data);
         }
 
         [HttpPost]
         public ActionResult<int> Create(CreateVehicleDto request)
         {
-            if (string.IsNullOrWhiteSpace(request.Plate))
+            var result = _vehicleService.Create(request);
+
+            if (!result.Success)
             {
-                return BadRequest("The plate is required.");
+                return BadRequest(result.Message);
             }
 
-            if (request.UserId <= 0)
-            {
-                return BadRequest("You need to select a user.");
-            }
-
-            var user = _context.Users.FirstOrDefault(user => user.Id == request.UserId);
-
-            if (user == null)
-            {
-                return BadRequest("The selected user was not found.");
-            }
-
-            var plateExists = _context.Vehicles.Any(vehicle => vehicle.Plate == request.Plate);
-
-            if (plateExists)
-            {
-                return BadRequest("This plate is already registered.");
-            }
-
-            var vehicle = new Vehicles
-            {
-                Plate = request.Plate,
-                Brand = request.Brand,
-                Model = request.Model,
-                Color = request.Color,
-                UserId = request.UserId,
-                IsActive = true
-            };
-
-            _context.Vehicles.Add(vehicle);
-            _context.SaveChanges();
-
-            return Ok(new { Id = vehicle.Id });
+            return Ok(new { Id = result.Data });
         }
 
         [HttpPut("{id}")]
         public IActionResult Update(int id, UpdateVehicleDto request)
         {
-            if (id != request.Id)
+            var result = _vehicleService.Update(id, request);
+
+            if (!result.Success)
             {
-                return BadRequest("The selected vehicle does not match the information sent.");
+                if (result.Message.Contains("not found"))
+                {
+                    return NotFound(result.Message);
+                }
+
+                return BadRequest(result.Message);
             }
-
-            var existing = _context.Vehicles.FirstOrDefault(vehicle => vehicle.Id == id);
-
-            if (existing == null)
-            {
-                return NotFound();
-            }
-
-            if (request.UserId <= 0)
-            {
-                return BadRequest("You need to select a user.");
-            }
-
-            var user = _context.Users.FirstOrDefault(user => user.Id == request.UserId);
-
-            if (user == null)
-            {
-                return BadRequest("The selected user was not found.");
-            }
-
-            var plateExists = _context.Vehicles.Any(vehicle => vehicle.Id != id && vehicle.Plate == request.Plate);
-
-            if (plateExists)
-            {
-                return BadRequest("This plate is already registered.");
-            }
-
-            existing.Plate = request.Plate;
-            existing.Brand = request.Brand;
-            existing.Model = request.Model;
-            existing.Color = request.Color;
-            existing.UserId = request.UserId;
-            existing.IsActive = request.IsActive;
-
-            _context.Vehicles.Update(existing);
-            _context.SaveChanges();
 
             return NoContent();
         }
@@ -150,15 +70,12 @@ namespace ParkRD.API.Controllers
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
-            var existing = _context.Vehicles.FirstOrDefault(vehicle => vehicle.Id == id);
+            var result = _vehicleService.Delete(id);
 
-            if (existing == null)
+            if (!result.Success)
             {
-                return NotFound();
+                return NotFound(result.Message);
             }
-
-            _context.Vehicles.Remove(existing);
-            _context.SaveChanges();
 
             return NoContent();
         }

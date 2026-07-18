@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using ParkRD.Infrastructure.Context;
-using ParkRD.Infrastructure.Models.Dtos;
-using ParkRD.Domain.Entities;
+using ParkRD.Application.Contract;
+using ParkRD.Application.Dtos;
 
 namespace ParkRD.API.Controllers
 {
@@ -9,131 +8,70 @@ namespace ParkRD.API.Controllers
     [Route("api/parkings")]
     public class ParkingsController : ControllerBase
     {
-        private readonly DataContext _context;
+        private readonly IParkingService _parkingService;
 
-        public ParkingsController(DataContext context)
+        public ParkingsController(IParkingService parkingService)
         {
-            _context = context;
+            _parkingService = parkingService;
         }
 
         [HttpGet]
         public ActionResult<IEnumerable<ParkingDto>> GetAll()
         {
-            var parkings = _context.Parkings.Select(parking => new ParkingDto
-            {
-                Id = parking.Id,
-                Code = parking.Code,
-                Status = parking.Status,
-                HourlyRate = parking.HourlyRate,
-                DailyRate = parking.DailyRate,
-                IsActive = parking.IsActive
-            }).ToList();
+            var result = _parkingService.GetAll();
 
-            return Ok(parkings);
+            return Ok(result.Data);
         }
 
         [HttpGet]
         [Route("available")]
         public ActionResult<IEnumerable<ParkingDto>> GetAvailable()
         {
-            var parkings = _context.Parkings
-                .Where(parking => parking.Status == "Available" && parking.IsActive)
-                .Select(parking => new ParkingDto
-                {
-                    Id = parking.Id,
-                    Code = parking.Code,
-                    Status = parking.Status,
-                    HourlyRate = parking.HourlyRate,
-                    DailyRate = parking.DailyRate,
-                    IsActive = parking.IsActive
-                }).ToList();
+            var result = _parkingService.GetAvailable();
 
-            return Ok(parkings);
+            return Ok(result.Data);
         }
 
         [HttpGet("{id}")]
         public ActionResult<ParkingDto> GetById(int id)
         {
-            var parking = _context.Parkings.FirstOrDefault(parking => parking.Id == id);
+            var result = _parkingService.GetById(id);
 
-            if (parking == null)
+            if (!result.Success)
             {
-                return NotFound();
+                return NotFound(result.Message);
             }
 
-            var response = new ParkingDto
-            {
-                Id = parking.Id,
-                Code = parking.Code,
-                Status = parking.Status,
-                HourlyRate = parking.HourlyRate,
-                DailyRate = parking.DailyRate,
-                IsActive = parking.IsActive
-            };
-
-            return Ok(response);
+            return Ok(result.Data);
         }
 
         [HttpPost]
         public ActionResult<int> Create(CreateParkingDto request)
         {
-            if (string.IsNullOrWhiteSpace(request.Code))
+            var result = _parkingService.Create(request);
+
+            if (!result.Success)
             {
-                return BadRequest("The parking code is required.");
+                return BadRequest(result.Message);
             }
 
-            var codeExists = _context.Parkings.Any(parking => parking.Code == request.Code);
-
-            if (codeExists)
-            {
-                return BadRequest("This parking code is already registered.");
-            }
-
-            var parking = new Parkings
-            {
-                Code = request.Code,
-                Status = "Available",
-                HourlyRate = request.HourlyRate,
-                DailyRate = request.DailyRate,
-                IsActive = true
-            };
-
-            _context.Parkings.Add(parking);
-            _context.SaveChanges();
-
-            return Ok(new { Id = parking.Id });
+            return Ok(new { Id = result.Data });
         }
 
         [HttpPut("{id}")]
         public IActionResult Update(int id, UpdateParkingDto request)
         {
-            if (id != request.Id)
+            var result = _parkingService.Update(id, request);
+
+            if (!result.Success)
             {
-                return BadRequest("The selected parking space does not match the information sent.");
+                if (result.Message.Contains("not found"))
+                {
+                    return NotFound(result.Message);
+                }
+
+                return BadRequest(result.Message);
             }
-
-            var existing = _context.Parkings.FirstOrDefault(parking => parking.Id == id);
-
-            if (existing == null)
-            {
-                return NotFound();
-            }
-
-            var codeExists = _context.Parkings.Any(parking => parking.Id != id && parking.Code == request.Code);
-
-            if (codeExists)
-            {
-                return BadRequest("This parking code is already registered.");
-            }
-
-            existing.Code = request.Code;
-            existing.Status = request.Status;
-            existing.HourlyRate = request.HourlyRate;
-            existing.DailyRate = request.DailyRate;
-            existing.IsActive = request.IsActive;
-
-            _context.Parkings.Update(existing);
-            _context.SaveChanges();
 
             return NoContent();
         }
@@ -141,15 +79,12 @@ namespace ParkRD.API.Controllers
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
-            var existing = _context.Parkings.FirstOrDefault(parking => parking.Id == id);
+            var result = _parkingService.Delete(id);
 
-            if (existing == null)
+            if (!result.Success)
             {
-                return NotFound();
+                return NotFound(result.Message);
             }
-
-            _context.Parkings.Remove(existing);
-            _context.SaveChanges();
 
             return NoContent();
         }

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using ParkRD.Infrastructure.Context;
-using ParkRD.Infrastructure.Models.Dtos;
-using ParkRD.Domain.Entities;
+using ParkRD.Application.Contract;
+using ParkRD.Application.Dtos;
 
 namespace ParkRD.API.Controllers
 {
@@ -9,148 +8,61 @@ namespace ParkRD.API.Controllers
     [Route("api/users")]
     public class UsersController : ControllerBase
     {
-        private readonly DataContext _context;
+        private readonly IUserService _userService;
 
-        public UsersController(DataContext context)
+        public UsersController(IUserService userService)
         {
-            _context = context;
+            _userService = userService;
         }
 
         [HttpGet]
         public ActionResult<IEnumerable<UserDto>> GetAll()
         {
-            var users = _context.Users.Select(user => new UserDto
-            {
-                Id = user.Id,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                NationalId = user.NationalId,
-                Email = user.Email,
-                PhoneNumber = user.PhoneNumber,
-                IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
-            }).ToList();
+            var result = _userService.GetAll();
 
-            return Ok(users);
+            return Ok(result.Data);
         }
 
         [HttpGet("{id}")]
         public ActionResult<UserDto> GetById(int id)
         {
-            var user = _context.Users.FirstOrDefault(user => user.Id == id);
+            var result = _userService.GetById(id);
 
-            if (user == null)
+            if (!result.Success)
             {
-                return NotFound();
+                return NotFound(result.Message);
             }
 
-            var response = new UserDto
-            {
-                Id = user.Id,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                NationalId = user.NationalId,
-                Email = user.Email,
-                PhoneNumber = user.PhoneNumber,
-                IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
-            };
-
-            return Ok(response);
+            return Ok(result.Data);
         }
 
         [HttpPost]
         public ActionResult<int> Create(CreateUserDto request)
         {
-            if (string.IsNullOrWhiteSpace(request.FirstName))
+            var result = _userService.Create(request);
+
+            if (!result.Success)
             {
-                return BadRequest("FirstName is required.");
+                return BadRequest(result.Message);
             }
 
-            if (string.IsNullOrWhiteSpace(request.LastName))
-            {
-                return BadRequest("LastName is required.");
-            }
-
-            if (string.IsNullOrWhiteSpace(request.NationalId))
-            {
-                return BadRequest("NationalId is required.");
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Email))
-            {
-                return BadRequest("Email is required.");
-            }
-
-            var emailExists = _context.Users.Any(user => user.Email == request.Email);
-
-            if (emailExists)
-            {
-                return BadRequest("Email is already registered.");
-            }
-
-            var nationalIdExists = _context.Users.Any(user => user.NationalId == request.NationalId);
-
-            if (nationalIdExists)
-            {
-                return BadRequest("NationalId is already registered.");
-            }
-
-            var user = new Users
-            {
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                NationalId = request.NationalId,
-                Email = request.Email,
-                PhoneNumber = request.PhoneNumber,
-                IsActive = true,
-                CreatedAt = DateTime.Now
-            };
-
-            _context.Users.Add(user);
-            _context.SaveChanges();
-
-            return Ok(new { Id = user.Id });
+            return Ok(new { Id = result.Data });
         }
 
         [HttpPut("{id}")]
         public IActionResult Update(int id, UpdateUserDto request)
         {
-            if (id != request.Id)
+            var result = _userService.Update(id, request);
+
+            if (!result.Success)
             {
-                return BadRequest("ID in URL does not match ID in body.");
+                if (result.Message.Contains("not found"))
+                {
+                    return NotFound(result.Message);
+                }
+
+                return BadRequest(result.Message);
             }
-
-            var existing = _context.Users.FirstOrDefault(user => user.Id == id);
-
-            if (existing == null)
-            {
-                return NotFound();
-            }
-
-            var emailExists = _context.Users.Any(user => user.Id != id && user.Email == request.Email);
-
-            if (emailExists)
-            {
-                return BadRequest("Email is already registered.");
-            }
-
-            var nationalIdExists = _context.Users.Any(user => user.Id != id && user.NationalId == request.NationalId);
-
-            if (nationalIdExists)
-            {
-                return BadRequest("NationalId is already registered.");
-            }
-
-            existing.FirstName = request.FirstName;
-            existing.LastName = request.LastName;
-            existing.NationalId = request.NationalId;
-            existing.Email = request.Email;
-            existing.PhoneNumber = request.PhoneNumber;
-            existing.IsActive = request.IsActive;
-
-            _context.Users.Update(existing);
-            _context.SaveChanges();
 
             return NoContent();
         }
@@ -158,15 +70,12 @@ namespace ParkRD.API.Controllers
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
-            var existing = _context.Users.FirstOrDefault(user => user.Id == id);
+            var result = _userService.Delete(id);
 
-            if (existing == null)
+            if (!result.Success)
             {
-                return NotFound();
+                return NotFound(result.Message);
             }
-
-            _context.Users.Remove(existing);
-            _context.SaveChanges();
 
             return NoContent();
         }
