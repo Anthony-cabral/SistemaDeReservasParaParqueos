@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="ParkRD.API/ParkRD.API.csproj" />
+  <Project Path="ParkRD.Application/ParkRD.Application.csproj" />
   <Project Path="ParkRD.Domain/ParkRD.Domain.csproj" />
   <Project Path="ParkRD.Infrastructure/ParkRD.Infrastructure.csproj" />
 </Solution>
