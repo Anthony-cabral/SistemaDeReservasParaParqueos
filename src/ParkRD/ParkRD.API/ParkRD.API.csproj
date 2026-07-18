@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ParkRD.Application\ParkRD.Application.csproj" />
     <ProjectReference Include="..\ParkRD.Infrastructure\ParkRD.Infrastructure.csproj" />
   </ItemGroup>
 
