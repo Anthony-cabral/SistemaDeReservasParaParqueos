@@ -9,10 +9,12 @@ namespace ParkRD.Application.Services
     public class ParkingService : IParkingService
     {
         private readonly IParkingRepository _parkingRepository;
+        private readonly IReservationRepository _reservationRepository;
 
-        public ParkingService(IParkingRepository parkingRepository)
+        public ParkingService(IParkingRepository parkingRepository, IReservationRepository reservationRepository)
         {
             _parkingRepository = parkingRepository;
+            _reservationRepository = reservationRepository;
         }
 
         public ServiceResult<IEnumerable<ParkingDto>> GetAll()
@@ -38,6 +40,48 @@ namespace ParkRD.Application.Services
         {
             var parkings = _parkingRepository.GetAll()
                 .Where(parking => parking.Status == "Available" && parking.IsActive)
+                .Select(parking => new ParkingDto
+                {
+                    Id = parking.Id,
+                    Code = parking.Code,
+                    Status = parking.Status,
+                    HourlyRate = parking.HourlyRate,
+                    DailyRate = parking.DailyRate,
+                    IsActive = parking.IsActive
+                }).ToList();
+
+            return new ServiceResult<IEnumerable<ParkingDto>>
+            {
+                Success = true,
+                Data = parkings
+            };
+        }
+
+        public ServiceResult<IEnumerable<ParkingDto>> GetAvailableByDate(DateTime date, TimeSpan startTime, TimeSpan endTime)
+        {
+            if (endTime <= startTime)
+            {
+                return new ServiceResult<IEnumerable<ParkingDto>>
+                {
+                    Success = false,
+                    Message = "The end time cannot be before the start time."
+                };
+            }
+
+            var reservedParkingIds = _reservationRepository.GetAll()
+                .Where(reservation =>
+                    reservation.ReservationDate.Date == date.Date &&
+                    reservation.Status != "Cancelled" &&
+                    reservation.StartTime < endTime &&
+                    reservation.EndTime > startTime)
+                .Select(reservation => reservation.ParkingId)
+                .ToList();
+
+            var parkings = _parkingRepository.GetAll()
+                .Where(parking =>
+                    parking.Status == "Available" &&
+                    parking.IsActive &&
+                    !reservedParkingIds.Contains(parking.Id))
                 .Select(parking => new ParkingDto
                 {
                     Id = parking.Id,

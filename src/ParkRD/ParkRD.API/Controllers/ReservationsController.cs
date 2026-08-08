@@ -32,6 +32,20 @@ namespace ParkRD.API.Controllers
             return Ok(result.Data);
         }
 
+        [HttpGet]
+        [Route("by-user/{userId}")]
+        public ActionResult<IEnumerable<ReservationDto>> GetByUser(int userId)
+        {
+            var result = _reservationService.GetByUser(userId);
+
+            if (!result.Success)
+            {
+                return NotFound(result.Message);
+            }
+
+            return Ok(result.Data);
+        }
+
         [HttpGet("{id}")]
         public ActionResult<ReservationDto> GetById(int id)
         {
@@ -62,6 +76,25 @@ namespace ParkRD.API.Controllers
         public IActionResult Update(int id, UpdateReservationDto request)
         {
             var result = _reservationService.Update(id, request);
+
+            if (!result.Success)
+            {
+                if (result.Message.Contains("not found"))
+                {
+                    return NotFound(result.Message);
+                }
+
+                return BadRequest(result.Message);
+            }
+
+            return NoContent();
+        }
+
+        [HttpPut]
+        [Route("cancel/{id}")]
+        public IActionResult Cancel(int id)
+        {
+            var result = _reservationService.Cancel(id);
 
             if (!result.Success)
             {
