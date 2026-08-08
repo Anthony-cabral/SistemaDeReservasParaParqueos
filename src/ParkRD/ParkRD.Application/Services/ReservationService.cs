@@ -45,6 +45,31 @@ namespace ParkRD.Application.Services
             };
         }
 
+        public ServiceResult<IEnumerable<ReservationDto>> GetByUser(int userId)
+        {
+            var user = _userRepository.GetById(userId);
+
+            if (user == null)
+            {
+                return new ServiceResult<IEnumerable<ReservationDto>>
+                {
+                    Success = false,
+                    Message = "The selected user was not found."
+                };
+            }
+
+            var reservations = _reservationRepository.GetAll()
+                .Where(reservation => reservation.UserId == userId)
+                .Select(reservation => MapReservation(reservation))
+                .ToList();
+
+            return new ServiceResult<IEnumerable<ReservationDto>>
+            {
+                Success = true,
+                Data = reservations
+            };
+        }
+
         public ServiceResult<ReservationDto> GetById(int id)
         {
             var reservation = _reservationRepository.GetById(id);
@@ -277,6 +302,11 @@ namespace ParkRD.Application.Services
 
         public ServiceResult<bool> Delete(int id)
         {
+            return Cancel(id);
+        }
+
+        public ServiceResult<bool> Cancel(int id)
+        {
             var existing = _reservationRepository.GetById(id);
 
             if (existing == null)
@@ -288,7 +318,35 @@ namespace ParkRD.Application.Services
                 };
             }
 
-            _reservationRepository.Delete(existing);
+            if (existing.Status == "Cancelled")
+            {
+                return new ServiceResult<bool>
+                {
+                    Success = false,
+                    Message = "This reservation is already cancelled."
+                };
+            }
+
+            existing.Status = "Cancelled";
+
+            var parking = _parkingRepository.GetById(existing.ParkingId);
+
+            if (parking != null)
+            {
+                var hasActiveReservations = _reservationRepository.GetAll().Any(reservation =>
+                    reservation.Id != existing.Id &&
+                    reservation.ParkingId == existing.ParkingId &&
+                    reservation.Status == "Reserved"
+                );
+
+                if (!hasActiveReservations)
+                {
+                    parking.Status = "Available";
+                    _parkingRepository.Update(parking);
+                }
+            }
+
+            _reservationRepository.Update(existing);
             _reservationRepository.SaveChanges();
 
             return new ServiceResult<bool>

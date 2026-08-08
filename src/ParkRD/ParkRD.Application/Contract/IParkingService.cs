@@ -9,6 +9,8 @@ namespace ParkRD.Application.Contract
 
         ServiceResult<IEnumerable<ParkingDto>> GetAvailable();
 
+        ServiceResult<IEnumerable<ParkingDto>> GetAvailableByDate(DateTime date, TimeSpan startTime, TimeSpan endTime);
+
         ServiceResult<ParkingDto> GetById(int id);
 
         ServiceResult<int> Create(CreateParkingDto request);

@@ -32,6 +32,20 @@ namespace ParkRD.API.Controllers
             return Ok(result.Data);
         }
 
+        [HttpGet]
+        [Route("available-by-date")]
+        public ActionResult<IEnumerable<ParkingDto>> GetAvailableByDate(DateTime date, TimeSpan startTime, TimeSpan endTime)
+        {
+            var result = _parkingService.GetAvailableByDate(date, startTime, endTime);
+
+            if (!result.Success)
+            {
+                return BadRequest(result.Message);
+            }
+
+            return Ok(result.Data);
+        }
+
         [HttpGet("{id}")]
         public ActionResult<ParkingDto> GetById(int id)
         {
