@@ -12,13 +12,23 @@ namespace ParkRD.Application.Services
         private readonly IUserRepository _userRepository;
         private readonly IVehicleRepository _vehicleRepository;
         private readonly IParkingRepository _parkingRepository;
+        private readonly IWalletRepository _walletRepository;
+        private readonly IWalletTransactionRepository _walletTransactionRepository;
 
-        public ReservationService(IReservationRepository reservationRepository, IUserRepository userRepository, IVehicleRepository vehicleRepository, IParkingRepository parkingRepository)
+        public ReservationService(
+            IReservationRepository reservationRepository,
+            IUserRepository userRepository,
+            IVehicleRepository vehicleRepository,
+            IParkingRepository parkingRepository,
+            IWalletRepository walletRepository,
+            IWalletTransactionRepository walletTransactionRepository)
         {
             _reservationRepository = reservationRepository;
             _userRepository = userRepository;
             _vehicleRepository = vehicleRepository;
             _parkingRepository = parkingRepository;
+            _walletRepository = walletRepository;
+            _walletTransactionRepository = walletTransactionRepository;
         }
 
         public ServiceResult<IEnumerable<ReservationDto>> GetAll()
@@ -37,6 +47,31 @@ namespace ParkRD.Application.Services
             var reservations = _reservationRepository.GetAll()
                 .Where(reservation => reservation.Status == "Reserved")
                 .Select(reservation => MapReservation(reservation)).ToList();
+
+            return new ServiceResult<IEnumerable<ReservationDto>>
+            {
+                Success = true,
+                Data = reservations
+            };
+        }
+
+        public ServiceResult<IEnumerable<ReservationDto>> GetByUser(int userId)
+        {
+            var user = _userRepository.GetById(userId);
+
+            if (user == null)
+            {
+                return new ServiceResult<IEnumerable<ReservationDto>>
+                {
+                    Success = false,
+                    Message = "The selected user was not found."
+                };
+            }
+
+            var reservations = _reservationRepository.GetAll()
+                .Where(reservation => reservation.UserId == userId)
+                .Select(reservation => MapReservation(reservation))
+                .ToList();
 
             return new ServiceResult<IEnumerable<ReservationDto>>
             {
@@ -137,6 +172,17 @@ namespace ParkRD.Application.Services
 
             var totalAmount = GetTotalAmount(request.ReservationType, request.StartTime, request.EndTime, parking.HourlyRate, parking.DailyRate);
 
+            var wallet = GetOrCreateWallet(request.UserId);
+
+            if (wallet.Balance < totalAmount)
+            {
+                return new ServiceResult<int>
+                {
+                    Success = false,
+                    Message = "The user does not have enough balance to complete this reservation."
+                };
+            }
+
             var reservation = new Reservations
             {
                 UserId = request.UserId,
@@ -156,6 +202,25 @@ namespace ParkRD.Application.Services
             _reservationRepository.Create(reservation);
             _parkingRepository.Update(parking);
             _reservationRepository.SaveChanges();
+
+            wallet.Balance -= totalAmount;
+            wallet.UpdatedAt = DateTime.Now;
+
+            var walletTransaction = new WalletTransactions
+            {
+                WalletId = wallet.Id,
+                UserId = request.UserId,
+                ReservationId = reservation.Id,
+                TransactionType = "Payment",
+                Amount = totalAmount,
+                Description = $"Payment for reservation #{reservation.Id}",
+                Status = "Completed",
+                CreatedAt = DateTime.Now
+            };
+
+            _walletRepository.Update(wallet);
+            _walletTransactionRepository.Create(walletTransaction);
+            _walletRepository.SaveChanges();
 
             return new ServiceResult<int>
             {
@@ -277,6 +342,11 @@ namespace ParkRD.Application.Services
 
         public ServiceResult<bool> Delete(int id)
         {
+            return Cancel(id);
+        }
+
+        public ServiceResult<bool> Cancel(int id)
+        {
             var existing = _reservationRepository.GetById(id);
 
             if (existing == null)
@@ -288,7 +358,72 @@ namespace ParkRD.Application.Services
                 };
             }
 
-            _reservationRepository.Delete(existing);
+            if (existing.Status == "Cancelled")
+            {
+                return new ServiceResult<bool>
+                {
+                    Success = false,
+                    Message = "This reservation is already cancelled."
+                };
+            }
+
+            existing.Status = "Cancelled";
+
+            var paymentTransaction = _walletTransactionRepository.GetAll()
+                .FirstOrDefault(transaction =>
+                    transaction.UserId == existing.UserId &&
+                    transaction.ReservationId == existing.Id &&
+                    transaction.TransactionType == "Payment" &&
+                    transaction.Status == "Completed");
+
+            var refundTransactionExists = _walletTransactionRepository.GetAll()
+                .Any(transaction =>
+                    transaction.UserId == existing.UserId &&
+                    transaction.ReservationId == existing.Id &&
+                    transaction.TransactionType == "Refund" &&
+                    transaction.Status == "Completed");
+
+            if (paymentTransaction != null && !refundTransactionExists)
+            {
+                var wallet = GetOrCreateWallet(existing.UserId);
+
+                wallet.Balance += existing.TotalAmount;
+                wallet.UpdatedAt = DateTime.Now;
+
+                var walletTransaction = new WalletTransactions
+                {
+                    WalletId = wallet.Id,
+                    UserId = existing.UserId,
+                    ReservationId = existing.Id,
+                    TransactionType = "Refund",
+                    Amount = existing.TotalAmount,
+                    Description = $"Refund for cancelled reservation #{existing.Id}",
+                    Status = "Completed",
+                    CreatedAt = DateTime.Now
+                };
+
+                _walletRepository.Update(wallet);
+                _walletTransactionRepository.Create(walletTransaction);
+            }
+
+            var parking = _parkingRepository.GetById(existing.ParkingId);
+
+            if (parking != null)
+            {
+                var hasActiveReservations = _reservationRepository.GetAll().Any(reservation =>
+                    reservation.Id != existing.Id &&
+                    reservation.ParkingId == existing.ParkingId &&
+                    reservation.Status == "Reserved"
+                );
+
+                if (!hasActiveReservations)
+                {
+                    parking.Status = "Available";
+                    _parkingRepository.Update(parking);
+                }
+            }
+
+            _reservationRepository.Update(existing);
             _reservationRepository.SaveChanges();
 
             return new ServiceResult<bool>
@@ -296,6 +431,30 @@ namespace ParkRD.Application.Services
                 Success = true,
                 Data = true
             };
+        }
+
+        private Wallets GetOrCreateWallet(int userId)
+        {
+            var wallet = _walletRepository.GetAll()
+                .FirstOrDefault(wallet => wallet.UserId == userId);
+
+            if (wallet != null)
+            {
+                return wallet;
+            }
+
+            wallet = new Wallets
+            {
+                UserId = userId,
+                Balance = 0,
+                IsActive = true,
+                CreatedAt = DateTime.Now
+            };
+
+            _walletRepository.Create(wallet);
+            _walletRepository.SaveChanges();
+
+            return wallet;
         }
 
         private ReservationDto MapReservation(Reservations reservation)
