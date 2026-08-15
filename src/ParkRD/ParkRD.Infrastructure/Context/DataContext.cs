@@ -16,5 +16,9 @@ namespace ParkRD.Infrastructure.Context
         public DbSet<Parkings> Parkings { get; set; }
 
         public DbSet<Reservations> Reservations { get; set; }
+
+        public DbSet<Wallets> Wallets { get; set; }
+
+        public DbSet<WalletTransactions> WalletTransactions { get; set; }
     }
 }
