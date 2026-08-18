@@ -1,0 +1,17 @@
+{
+  "name": "parkrd-react-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host localhost --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host localhost --port 3000"
+  },
+  "dependencies": {
+    "@vitejs/plugin-basic-ssl": "latest",
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}
