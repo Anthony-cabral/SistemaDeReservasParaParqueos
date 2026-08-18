@@ -9,6 +9,8 @@ namespace ParkRD.Application.Contract
 
         ServiceResult<IEnumerable<ReservationDto>> GetActive();
 
+        ServiceResult<IEnumerable<ReservationDto>> GetByUser(int userId);
+
         ServiceResult<ReservationDto> GetById(int id);
 
         ServiceResult<int> Create(CreateReservationDto request);
@@ -16,5 +18,7 @@ namespace ParkRD.Application.Contract
         ServiceResult<bool> Update(int id, UpdateReservationDto request);
 
         ServiceResult<bool> Delete(int id);
+
+        ServiceResult<bool> Cancel(int id);
     }
 }

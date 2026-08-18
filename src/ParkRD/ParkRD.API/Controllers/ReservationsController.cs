@@ -76,6 +76,24 @@ namespace ParkRD.API.Controllers
             return NoContent();
         }
 
+        [HttpPut("cancel/{id}")]
+        public IActionResult Cancel(int id)
+        {
+            var result = _reservationService.Cancel(id);
+
+            if (!result.Success)
+            {
+                if (result.Message.Contains("not found"))
+                {
+                    return NotFound(result.Message);
+                }
+
+                return BadRequest(result.Message);
+            }
+
+            return Ok(new { Cancelled = result.Data });
+        }
+
         [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
@@ -83,7 +101,12 @@ namespace ParkRD.API.Controllers
 
             if (!result.Success)
             {
-                return NotFound(result.Message);
+                if (result.Message.Contains("not found"))
+                {
+                    return NotFound(result.Message);
+                }
+
+                return BadRequest(result.Message);
             }
 
             return NoContent();
